@@ -3,12 +3,13 @@
 
 import google.generativeai as genai
 import json
+import time
 from config import GEMINI_KEY
 from metadata import *
 
 # Configure Gemini
 genai.configure(api_key=GEMINI_KEY)
-model = genai.GenerativeModel('models/gemini-2.0-flash')
+model = genai.GenerativeModel('models/gemini-2.0-flash-exp')
 
 def is_greeting_or_simple_chat(question):
     """
@@ -45,6 +46,70 @@ def is_greeting_or_simple_chat(question):
             return 'help'
     
     return None
+
+def call_gemini_with_retry(prompt, max_attempts=3):
+    """
+    Call Gemini API with retry logic for rate limits and other errors
+    
+    Args:
+        prompt: The prompt to send to Gemini
+        max_attempts: Maximum number of attempts
+    
+    Returns:
+        Response text or error dictionary
+    """
+    for attempt in range(max_attempts):
+        try:
+            response = model.generate_content(prompt)
+            return {'success': True, 'text': response.text.strip()}
+            
+        except Exception as e:
+            error_str = str(e).lower()
+            
+            # Handle rate limiting (429 error)
+            if '429' in error_str or 'quota' in error_str or 'rate limit' in error_str:
+                if attempt < max_attempts - 1:
+                    wait_time = 10 * (attempt + 1)  # 10s, 20s, 30s
+                    print(f"⏱️ Gemini rate limit hit, waiting {wait_time}s... (Attempt {attempt + 1}/{max_attempts})")
+                    time.sleep(wait_time)
+                else:
+                    return {
+                        'success': False,
+                        'error': 'rate_limit',
+                        'message': 'Too many requests to AI service. Please wait a moment and try again.'
+                    }
+            
+            # Handle timeout
+            elif 'timeout' in error_str:
+                if attempt < max_attempts - 1:
+                    wait_time = 5 * (attempt + 1)
+                    print(f"⏱️ Gemini timeout, retrying in {wait_time}s... (Attempt {attempt + 1}/{max_attempts})")
+                    time.sleep(wait_time)
+                else:
+                    return {
+                        'success': False,
+                        'error': 'timeout',
+                        'message': 'AI service is taking too long to respond. Please try again.'
+                    }
+            
+            # Handle other API errors
+            else:
+                if attempt < max_attempts - 1:
+                    wait_time = 3 * (attempt + 1)
+                    print(f"⚠️ Gemini error: {str(e)}, retrying in {wait_time}s... (Attempt {attempt + 1}/{max_attempts})")
+                    time.sleep(wait_time)
+                else:
+                    return {
+                        'success': False,
+                        'error': 'api_error',
+                        'message': f'AI service error: {str(e)}'
+                    }
+    
+    return {
+        'success': False,
+        'error': 'max_attempts',
+        'message': 'Failed after multiple attempts. Please try again later.'
+    }
 
 def parse_user_question(user_question):
     """
@@ -98,8 +163,16 @@ RULES:
 """
     
     try:
-        response = model.generate_content(prompt)
-        response_text = response.text.strip()
+        # Call Gemini with retry logic
+        gemini_response = call_gemini_with_retry(prompt, max_attempts=3)
+        
+        if not gemini_response['success']:
+            return {
+                'success': False,
+                'error': gemini_response['message']
+            }
+        
+        response_text = gemini_response['text']
         
         # Remove markdown code blocks if present
         if response_text.startswith('```'):
@@ -132,17 +205,15 @@ RULES:
         
     except json.JSONDecodeError as e:
         print(f"❌ Failed to parse JSON from Gemini")
-        print(f"   Response was: {response_text[:200]}...")
         return {
             'success': False,
-            'error': 'Could not parse Gemini response as JSON',
-            'raw_response': response_text
+            'error': 'Could not understand the question format. Please try rephrasing.'
         }
     except Exception as e:
         print(f"❌ Error: {str(e)}")
         return {
             'success': False,
-            'error': str(e)
+            'error': f'Unexpected error: {str(e)}'
         }
 
 def validate_parsed_query(parsed_data):
@@ -390,8 +461,16 @@ Generate a clear, direct answer:
 """
     
     try:
-        response = model.generate_content(prompt)
-        answer = response.text.strip()
+        # Call Gemini with retry logic
+        gemini_response = call_gemini_with_retry(prompt, max_attempts=3)
+        
+        if not gemini_response['success']:
+            return {
+                'success': False,
+                'error': gemini_response['message']
+            }
+        
+        answer = gemini_response['text']
         
         print(f"✅ Answer generated!")
         
@@ -405,5 +484,5 @@ Generate a clear, direct answer:
         print(f"❌ Error generating answer: {str(e)}")
         return {
             'success': False,
-            'error': str(e)
+            'error': f'Error generating answer: {str(e)}'
         }
