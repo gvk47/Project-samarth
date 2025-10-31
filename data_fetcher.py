@@ -2,11 +2,12 @@
 # This file handles all API calls to fetch data
 
 import requests
+import time
 
 # Try to import streamlit, use dummy cache if not available
 try:
     import streamlit as st
-    cache_decorator = st.cache_data(ttl=3600)
+    cache_decorator = st.cache_data(ttl=86400)  # 24 hours cache (was 1 hour)
 except:
     # Dummy decorator for testing without Streamlit
     def cache_decorator(func):
@@ -15,8 +16,41 @@ except:
 from config import *
 from metadata import get_subdivision_for_state
 
-# Cache decorator to store API responses (1 hour expiry)
-@cache_decorator
+def retry_request(func, max_attempts=3, initial_delay=1):
+    """
+    Retry a function with exponential backoff
+    
+    Args:
+        func: Function to retry
+        max_attempts: Maximum number of attempts
+        initial_delay: Initial delay in seconds
+    
+    Returns:
+        Result of function or None if all attempts fail
+    """
+    for attempt in range(max_attempts):
+        try:
+            result = func()
+            return result
+        except requests.exceptions.Timeout:
+            if attempt < max_attempts - 1:
+                delay = initial_delay * (2 ** attempt)  # Exponential backoff
+                print(f"⏱️ Request timeout, retrying in {delay}s... (Attempt {attempt + 1}/{max_attempts})")
+                time.sleep(delay)
+            else:
+                print(f"❌ All {max_attempts} attempts failed due to timeout")
+                return None
+        except requests.exceptions.RequestException as e:
+            if attempt < max_attempts - 1:
+                delay = initial_delay * (2 ** attempt)
+                print(f"⚠️ Request failed: {str(e)}, retrying in {delay}s... (Attempt {attempt + 1}/{max_attempts})")
+                time.sleep(delay)
+            else:
+                print(f"❌ All {max_attempts} attempts failed: {str(e)}")
+                return None
+    return None
+
+# Cache decorator to store API responses (24 hour expiry)
 @cache_decorator
 def fetch_rainfall_annual(state_name, years):
     """
@@ -35,23 +69,6 @@ def fetch_rainfall_annual(state_name, years):
     subdivision = get_subdivision_for_state(state_name)
     print(f"  Mapped to subdivision: {subdivision}")
     
-    # STRATEGY: The API has 2301 total records (36 subdivisions × ~64 years)
-    # Records start from 1951 and go to ~2017
-    # For years 2010-2014, we need records from position ~2100 onwards
-    # So we need to fetch A LOT of records to reach recent years
-    
-    # Calculate offset based on years we want
-    min_year = min(years)
-    max_year = max(years)
-    
-    # API starts from 1951, each subdivision has ~64 years
-    # There are 36 subdivisions
-    # To get to year 2010: (2010 - 1951) = 59 years per subdivision
-    # 59 years × 36 subdivisions = ~2124 records to skip
-    
-    # SAFER APPROACH: Just fetch a large chunk of recent records
-    # Let's fetch records from offset 1800 to 2300 (covers 2000-2017)
-    
     url = f"{RAINFALL_ANNUAL_API}"
     params = {
         'api-key': API_KEY,
@@ -60,8 +77,19 @@ def fetch_rainfall_annual(state_name, years):
         'limit': 500     # Fetch enough to cover 2000-2017 for all subdivisions
     }
     
+    def make_request():
+        response = requests.get(url, params=params, timeout=60)  # Increased from 10s to 60s
+        response.raise_for_status()
+        return response
+    
     try:
-        response = requests.get(url, params=params, timeout=10)
+        response = retry_request(make_request, max_attempts=3, initial_delay=2)
+        
+        if response is None:
+            return {
+                'success': False,
+                'error': 'API request failed after multiple attempts. Government servers may be slow or unavailable.'
+            }
         
         if response.status_code == 200:
             data = response.json()
@@ -111,7 +139,7 @@ def fetch_rainfall_annual(state_name, years):
     except Exception as e:
         return {
             'success': False,
-            'error': str(e)
+            'error': f'Unexpected error: {str(e)}'
         }
     
 @cache_decorator
@@ -144,8 +172,19 @@ def fetch_crop_production(state_name, crop_name=None, year=None):
     if year:
         params['filters[crop_year]'] = year
     
+    def make_request():
+        response = requests.get(url, params=params, timeout=60)  # Increased from 10s to 60s
+        response.raise_for_status()
+        return response
+    
     try:
-        response = requests.get(url, params=params, timeout=10)
+        response = retry_request(make_request, max_attempts=3, initial_delay=2)
+        
+        if response is None:
+            return {
+                'success': False,
+                'error': 'API request failed after multiple attempts. Government servers may be slow or unavailable.'
+            }
         
         if response.status_code == 200:
             data = response.json()
@@ -169,7 +208,7 @@ def fetch_crop_production(state_name, crop_name=None, year=None):
     except Exception as e:
         return {
             'success': False,
-            'error': str(e)
+            'error': f'Unexpected error: {str(e)}'
         }
     
 @cache_decorator
@@ -194,8 +233,19 @@ def fetch_water_usage(crop_name=None):
     if crop_name:
         params['filters[crop]'] = crop_name
     
+    def make_request():
+        response = requests.get(url, params=params, timeout=60)  # Increased from 10s to 60s
+        response.raise_for_status()
+        return response
+    
     try:
-        response = requests.get(url, params=params, timeout=10)
+        response = retry_request(make_request, max_attempts=3, initial_delay=2)
+        
+        if response is None:
+            return {
+                'success': False,
+                'error': 'API request failed after multiple attempts. Government servers may be slow or unavailable.'
+            }
         
         if response.status_code == 200:
             data = response.json()
@@ -217,7 +267,7 @@ def fetch_water_usage(crop_name=None):
     except Exception as e:
         return {
             'success': False,
-            'error': str(e)
+            'error': f'Unexpected error: {str(e)}'
         }
     
 def calculate_average_rainfall(rainfall_data):
