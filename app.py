@@ -331,7 +331,6 @@ if user_input:
                     sys.stdout = old_stdout
                     st.markdown(response)
                     add_message('assistant', response)
-                    st.rerun()
                 
                 elif chat_type == 'help':
                     response = "I can help you with questions about Indian agriculture and climate data!\n\n**Available:**\n- 📍 33 states\n- 🌾 100+ crops\n- 📅 Rainfall: 1901-2017\n- 📅 Crops: 1997-2014\n\n**Check the sidebar for examples!**"
@@ -339,7 +338,6 @@ if user_input:
                     sys.stdout = old_stdout
                     st.markdown(response)
                     add_message('assistant', response)
-                    st.rerun()
                 
                 # Parse and validate
                 parsed = parse_user_question(user_input)
@@ -350,7 +348,6 @@ if user_input:
                     sys.stdout = old_stdout
                     st.markdown(error_msg)
                     add_message('assistant', error_msg)
-                    st.rerun()
                 
                 validation = validate_parsed_query(parsed)
                 
@@ -367,7 +364,6 @@ if user_input:
                     sys.stdout = old_stdout
                     st.markdown(error_msg)
                     add_message('assistant', error_msg)
-                    st.rerun()
                 
                 # Fetch data
                 apis_needed = determine_required_apis(parsed)
@@ -425,7 +421,6 @@ if user_input:
                     sys.stdout = old_stdout
                     st.markdown(error_msg)
                     add_message('assistant', error_msg)
-                    st.rerun()
                 
                 # Generate answer
                 answer_result = generate_intelligent_answer(user_input, parsed, fetched_data)
@@ -445,8 +440,6 @@ if user_input:
             # Restore stdout in case of error
             sys.stdout = old_stdout
             st.error(f"An error occurred: {str(e)}")
-    
-    st.rerun()
 
 # Footer
 st.markdown("---")
