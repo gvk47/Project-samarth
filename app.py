@@ -1,5 +1,6 @@
 # app.py
 # Main Streamlit application - Project SAMARTH
+# Production-ready version with full optimization
 
 import streamlit as st
 from metadata import *
@@ -8,6 +9,7 @@ from gemini_handler import *
 import datetime
 import sys
 from io import StringIO
+import gc  # Garbage collection for memory management
 
 # Page configuration
 st.set_page_config(
@@ -17,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS - ULTRA COMPACT SIDEBAR WITH FIXED TOOLTIP
+# Custom CSS - PRODUCTION OPTIMIZED
 st.markdown("""
 <style>
     .main-header {
@@ -39,12 +41,10 @@ st.markdown("""
         padding-top: 0.5rem;
     }
     
-    /* Reduce all internal spacing in sidebar */
     [data-testid="stSidebar"] > div {
         padding-top: 0.3rem;
     }
     
-    /* Compact sidebar buttons with minimal spacing */
     [data-testid="stSidebar"] .stButton {
         margin-bottom: 0.15rem;
     }
@@ -55,7 +55,6 @@ st.markdown("""
         margin-bottom: 0;
     }
     
-    /* Smaller sidebar headers with less spacing */
     [data-testid="stSidebar"] h2 {
         font-size: 0.9rem;
         margin-bottom: 0.25rem;
@@ -63,13 +62,11 @@ st.markdown("""
         font-weight: 600;
     }
     
-    /* Thinner separators with minimal margin */
     [data-testid="stSidebar"] hr {
         margin: 0.3rem 0;
         border-top: 1px solid #e0e0e0;
     }
     
-    /* Compact expanders in sidebar */
     [data-testid="stSidebar"] .stExpander {
         border: 1px solid #e0e0e0;
         border-radius: 3px;
@@ -84,49 +81,33 @@ st.markdown("""
     
     [data-testid="stSidebar"] .stExpander [data-testid="stExpanderDetails"] {
         padding: 0.3rem 0.4rem;
+        font-size: 0.7rem;
+        line-height: 1.3;
     }
     
-    /* Compact captions in sidebar */
     [data-testid="stSidebar"] .stCaption {
         font-size: 0.68rem;
         line-height: 1.2;
         margin-bottom: 0.1rem;
     }
     
-    /* FIXED TOOLTIP - Constrained within sidebar */
-    [data-testid="stSidebar"] .stButton button[title]:hover::after {
-        content: attr(title);
-        position: absolute;
-        left: 5%;
-        top: 100%;
-        width: 90%;
-        max-width: 250px;
-        background-color: rgba(0, 0, 0, 0.9);
-        color: #fff;
-        padding: 8px;
-        border-radius: 4px;
+    /* Question text in expander */
+    .example-question-text {
         font-size: 0.7rem;
-        z-index: 10000;
-        margin-top: 4px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-        white-space: normal;
         line-height: 1.4;
-        word-wrap: break-word;
-        overflow-wrap: break-word;
+        color: #ccc;
     }
     
     .stChatMessage {
         background-color: transparent !important;
     }
     
-    /* Cleaner expander in main area */
     .stExpander {
         border: 1px solid #e0e0e0;
         border-radius: 4px;
         margin-top: 0.5rem;
     }
     
-    /* Compact source item */
     .source-item {
         background-color: #f8f9fa;
         border-left: 3px solid #4CAF50;
@@ -148,21 +129,21 @@ st.markdown("""
         margin: 0.2rem 0;
     }
     
-    /* API URL display */
     .api-url-box {
         background-color: #f5f5f5;
         border: 1px solid #ddd;
         border-radius: 3px;
         padding: 0.5rem;
         margin-top: 0.3rem;
-        font-size: 0.75rem;
+        font-size: 0.7rem;
         font-family: monospace;
         word-break: break-all;
+        color: #555;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Initialize session state
+# Initialize session state with limits
 if 'conversations' not in st.session_state:
     st.session_state['conversations'] = []
 
@@ -172,14 +153,34 @@ if 'current_conversation_id' not in st.session_state:
 if 'pending_question' not in st.session_state:
     st.session_state['pending_question'] = None
 
-# Helper functions
+if 'question_count' not in st.session_state:
+    st.session_state['question_count'] = 0
+
+# MEMORY MANAGEMENT: Limit conversation history
+MAX_CONVERSATIONS = 10
+MAX_MESSAGES_PER_CONV = 20
+
+def cleanup_old_conversations():
+    """Remove old conversations to prevent memory buildup"""
+    if len(st.session_state['conversations']) > MAX_CONVERSATIONS:
+        # Keep only the most recent conversations
+        st.session_state['conversations'] = st.session_state['conversations'][-MAX_CONVERSATIONS:]
+        
+        # If current conversation was deleted, reset
+        current_id = st.session_state.get('current_conversation_id')
+        if current_id is not None:
+            conv_ids = [c['id'] for c in st.session_state['conversations']]
+            if current_id not in conv_ids:
+                st.session_state['current_conversation_id'] = None
+
 def get_current_conversation():
     if st.session_state['current_conversation_id'] is None:
         return []
     
     for conv in st.session_state['conversations']:
         if conv['id'] == st.session_state['current_conversation_id']:
-            return conv['messages']
+            # Limit messages per conversation
+            return conv['messages'][-MAX_MESSAGES_PER_CONV:]
     return []
 
 def add_message(role, content, **kwargs):
@@ -204,34 +205,44 @@ def add_message(role, content, **kwargs):
             message.update(kwargs)
             conv['messages'].append(message)
             
+            # Limit messages per conversation
+            if len(conv['messages']) > MAX_MESSAGES_PER_CONV:
+                conv['messages'] = conv['messages'][-MAX_MESSAGES_PER_CONV:]
+            
             if role == 'user' and len(conv['messages']) == 1:
                 conv['title'] = content[:40] + "..." if len(content) > 40 else content
             break
+    
+    # Cleanup after adding message
+    cleanup_old_conversations()
 
-# Sidebar - COMPACT VERSION
+# Sidebar
 with st.sidebar:
     st.markdown("## 💬 Chats")
     
     if st.button("➕ New", use_container_width=True):
         st.session_state['current_conversation_id'] = None
+        st.session_state['question_count'] = 0
+        gc.collect()  # Force garbage collection
         st.rerun()
     
     st.markdown("---")
     
-    # Conversation history
+    # Conversation history - show last 5 only
     if st.session_state['conversations']:
         for conv in reversed(st.session_state['conversations'][-5:]):
             is_current = conv['id'] == st.session_state['current_conversation_id']
             icon = "📌" if is_current else "💬"
             
-            if st.button(f"{icon} {conv['title'][:35]}...", key=f"conv_{conv['id']}", 
-                        use_container_width=True, help=conv['title']):
+            if st.button(f"{icon} {conv['title'][:30]}...", key=f"conv_{conv['id']}", 
+                        use_container_width=True):
                 st.session_state['current_conversation_id'] = conv['id']
+                st.session_state['question_count'] = len(conv['messages']) // 2
                 st.rerun()
     
     st.markdown("---")
     
-    # SUGGESTED QUESTIONS - WITH TOOLTIPS
+    # FIXED: Example questions as EXPANDERS (not tooltips)
     st.markdown("## 💡 Examples")
     
     questions = [
@@ -254,11 +265,11 @@ with st.sidebar:
     ]
     
     for i, q in enumerate(questions):
-        if st.button(q['short'], key=f"sidebar_q_{i}", 
-                    use_container_width=True, 
-                    help=q['full']):
-            st.session_state['pending_question'] = q['full']
-            st.rerun()
+        with st.expander(q['short'], expanded=False):
+            st.markdown(f"<div class='example-question-text'>{q['full']}</div>", unsafe_allow_html=True)
+            if st.button("Ask this question", key=f"ask_q_{i}", use_container_width=True):
+                st.session_state['pending_question'] = q['full']
+                st.rerun()
     
     st.markdown("---")
     st.markdown("## 📊 Data")
@@ -287,7 +298,7 @@ for msg in current_messages:
     with st.chat_message(msg['role']):
         st.markdown(msg['content'])
         
-        # FIXED: Only show data sources when api_calls exist AND have data
+        # Only show data sources when api_calls exist AND have data
         if msg['role'] == 'assistant' and 'api_calls' in msg and len(msg.get('api_calls', [])) > 0:
             with st.expander("📊 Data Sources & Traceability", expanded=False):
                 total_records = sum(c.get('records', 0) for c in msg['api_calls'])
@@ -296,13 +307,12 @@ for msg in current_messages:
                 st.markdown("")
                 
                 for i, call in enumerate(msg['api_calls'], 1):
-                    # Compact, clean presentation - NO NESTED EXPANDER
                     st.markdown(f"""
                     <div class="source-item">
                         <div class="source-title">Source {i}: {call.get('dataset', 'Unknown')}</div>
                         <div class="source-detail">📍 {call.get('purpose', 'N/A')}</div>
                         <div class="source-detail">📊 {call.get('records', 0)} records retrieved</div>
-                        <div class="api-url-box">🔗 {call.get('url', 'N/A')}</div>
+                        <div class="api-url-box">🔗 API: {call.get('url', 'N/A')}</div>
                     </div>
                     """, unsafe_allow_html=True)
                 
@@ -317,41 +327,43 @@ if not current_messages:
 # User input
 user_input = st.chat_input("Ask about agriculture and climate data...")
 
-# FIXED: Handle pre-built question from sidebar
+# Handle pre-built question from sidebar
 if st.session_state.get('pending_question'):
     user_input = st.session_state['pending_question']
     st.session_state['pending_question'] = None
 
 # Process question
 if user_input:
-    # FIXED: Display user message IMMEDIATELY
+    # Increment question count
+    st.session_state['question_count'] += 1
+    
+    # Display user message IMMEDIATELY
     with st.chat_message("user"):
         st.markdown(user_input)
     
     add_message('user', user_input)
     
     with st.chat_message("assistant"):
-        # HIDE PRINT STATEMENTS - Redirect stdout
+        # Redirect stdout to hide print statements
         old_stdout = sys.stdout
         sys.stdout = StringIO()
         
         try:
             with st.spinner("✨ Generating answer..."):
                 
-                # FIXED: Let Gemini handle ALL questions naturally
-                # Check if it's an agriculture-related question
+                # Check if agriculture-related
                 is_agriculture_query = check_if_agriculture_query(user_input)
                 
                 if not is_agriculture_query:
-                    # Let Gemini respond naturally to out-of-scope questions
+                    # Handle general queries naturally
                     response_result = handle_general_query(user_input)
                     
                     sys.stdout = old_stdout
                     st.markdown(response_result['answer'])
-                    add_message('assistant', response_result['answer'])  # NO api_calls for non-data questions
+                    add_message('assistant', response_result['answer'])
                 
                 else:
-                    # Parse and validate for agriculture queries
+                    # Parse agriculture query
                     parsed = parse_user_question(user_input)
                     
                     if not parsed['success']:
@@ -359,15 +371,13 @@ if user_input:
                         
                         sys.stdout = old_stdout
                         st.markdown(error_msg)
-                        add_message('assistant', error_msg)  # NO api_calls for errors
+                        add_message('assistant', error_msg)
                     else:
                         validation = validate_parsed_query(parsed)
                         
                         if not validation['valid']:
-                            if validation['type'] == 'out_of_scope':
-                                error_msg = f"❌ {validation['reason']}\n\n💡 **Ask about agriculture/climate only:**\n- Crop production\n- Rainfall patterns\n- District data\n- Irrigation methods\n\n📌 Try sidebar examples!"
-                            elif validation['type'] == 'too_vague':
-                                error_msg = f"❌ {validation['reason']}\n\n💡 **Be specific:**\n- States: Punjab, Maharashtra, etc.\n- Crops: wheat, rice, cotton, etc.\n- Years: 2010-2014, etc.\n\n📌 Check sidebar!"
+                            if validation['type'] == 'too_vague':
+                                error_msg = f"❌ {validation['reason']}\n\n💡 **Be specific:**\n- States: Punjab, Maharashtra\n- Crops: wheat, rice, cotton\n- Years: 2010-2014\n\n📌 Check sidebar!"
                             else:
                                 error_msg = f"❌ {validation['reason']}"
                                 if validation.get('suggestions'):
@@ -375,9 +385,9 @@ if user_input:
                             
                             sys.stdout = old_stdout
                             st.markdown(error_msg)
-                            add_message('assistant', error_msg)  # NO api_calls for errors
+                            add_message('assistant', error_msg)
                         else:
-                            # Fetch data for valid agriculture queries
+                            # Fetch data
                             apis_needed = determine_required_apis(parsed)
                             
                             fetched_data = {}
@@ -432,29 +442,30 @@ if user_input:
                                 
                                 sys.stdout = old_stdout
                                 st.markdown(error_msg)
-                                add_message('assistant', error_msg)  # NO api_calls when no data
+                                add_message('assistant', error_msg)
                             else:
                                 # Generate answer
                                 answer_result = generate_intelligent_answer(user_input, parsed, fetched_data)
                                 
-                                # Restore stdout
                                 sys.stdout = old_stdout
                                 
                                 if answer_result['success']:
                                     st.markdown(answer_result['answer'])
-                                    # FIXED: Only add api_calls when we have actual data
                                     add_message('assistant', answer_result['answer'], api_calls=api_calls_made)
                                 else:
                                     error_msg = f"❌ Error: {answer_result.get('error')}"
                                     st.markdown(error_msg)
-                                    add_message('assistant', error_msg)  # NO api_calls for errors
+                                    add_message('assistant', error_msg)
+            
+            # Force garbage collection after each question
+            gc.collect()
         
         except Exception as e:
-            # Restore stdout in case of error
             sys.stdout = old_stdout
-            error_msg = f"❌ An error occurred: {str(e)}"
+            error_msg = f"❌ An error occurred. Please try again or use a different question."
             st.error(error_msg)
             add_message('assistant', error_msg)
+            gc.collect()
 
 # Footer
 st.markdown("---")
