@@ -1,3 +1,58 @@
-streamlit==1.28.0
-google-generativeai==0.3.1
+# requirements.txt
+# Python dependencies for Project SAMARTH
+
+# Core framework
+streamlit==1.40.1
+
+# AI/ML
+google-generativeai==0.8.3
+
+# HTTP requests
 requests==2.31.0
+
+# Optional but recommended
+python-dotenv==1.0.0  # For environment variable management
+
+# ============================================================================
+# INSTALLATION INSTRUCTIONS
+# ============================================================================
+
+# Install all dependencies:
+# pip install -r requirements.txt
+
+# Or install individually:
+# pip install streamlit google-generativeai requests python-dotenv
+
+# ============================================================================
+# VERSION NOTES
+# ============================================================================
+
+# Streamlit 1.40.1: Latest stable with improved chat interface
+# google-generativeai 0.8.3: Latest with Gemini 2.0 Flash support
+# requests 2.31.0: Stable HTTP library with retry support
+# python-dotenv 1.0.0: For loading .env files (optional)
+
+# ============================================================================
+# DEPLOYMENT PLATFORMS
+# ============================================================================
+
+# For Streamlit Cloud:
+# - Upload requirements.txt to your repo
+# - Add secrets in Streamlit Cloud dashboard
+# - No additional setup needed
+
+# For Heroku:
+# - Procfile needed: web: sh setup.sh && streamlit run app.py
+# - Create setup.sh for Streamlit configuration
+
+# For AWS/GCP:
+# - Use Docker container with Python 3.11+
+# - Install requirements in container
+# - Set environment variables
+
+# ============================================================================
+# MINIMUM PYTHON VERSION
+# ============================================================================
+
+# Python 3.9+ required
+# Recommended: Python 3.11 for best performance
