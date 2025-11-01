@@ -53,14 +53,14 @@ CACHE_TTL = 86400  # 24 hours
 # ============================================================================
 
 GEMINI_MODEL = "gemini-2.0-flash-exp"
-GEMINI_MAX_ATTEMPTS = 3
+GEMINI_MAX_ATTEMPTS = 20
 GEMINI_INITIAL_DELAY = 2
 
 # ============================================================================
 # APPLICATION SETTINGS
 # ============================================================================
 
-MAX_CONVERSATIONS = 10
+MAX_CONVERSATIONS = 20
 MAX_MESSAGES_PER_CONV = 20
 MAX_QUESTIONS_PER_SESSION = 100
 RATE_LIMIT_WARNING_THRESHOLD = 80
@@ -73,3 +73,4 @@ ENABLE_CACHING = True
 ENABLE_DEBUG_MODE = False
 SHOW_API_URLS = True
 ENABLE_PARALLEL_FETCHING = False
+
