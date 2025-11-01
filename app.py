@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS - ULTRA COMPACT SIDEBAR
+# Custom CSS - ULTRA COMPACT SIDEBAR WITH FIXED TOOLTIP
 st.markdown("""
 <style>
     .main-header {
@@ -93,23 +93,26 @@ st.markdown("""
         margin-bottom: 0.1rem;
     }
     
-    /* Tooltip for buttons */
+    /* FIXED TOOLTIP - Constrained within sidebar */
     [data-testid="stSidebar"] .stButton button[title]:hover::after {
         content: attr(title);
         position: absolute;
-        left: 0;
+        left: 5%;
         top: 100%;
-        width: 95%;
-        background-color: rgba(0, 0, 0, 0.85);
+        width: 90%;
+        max-width: 250px;
+        background-color: rgba(0, 0, 0, 0.9);
         color: #fff;
-        padding: 5px;
+        padding: 8px;
         border-radius: 4px;
         font-size: 0.7rem;
-        z-index: 1000;
-        margin-top: 2px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        z-index: 10000;
+        margin-top: 4px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
         white-space: normal;
-        line-height: 1.3;
+        line-height: 1.4;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
     }
     
     .stChatMessage {
@@ -240,7 +243,7 @@ with st.sidebar:
                     use_container_width=True, 
                     help=q['full']):
             st.session_state['selected_question'] = q['full']
-            st.rerun()
+            st.rerun()  # FIXED: Keep rerun for example questions
     
     st.markdown("---")
     st.markdown("## 📊 Data")
@@ -269,8 +272,8 @@ for msg in current_messages:
     with st.chat_message(msg['role']):
         st.markdown(msg['content'])
         
-        # CLEANER DATA SOURCES SECTION
-        if msg['role'] == 'assistant' and 'api_calls' in msg:
+        # FIXED: Only show data sources when api_calls exist AND have data
+        if msg['role'] == 'assistant' and 'api_calls' in msg and len(msg['api_calls']) > 0:
             with st.expander("📊 Data Sources & Traceability", expanded=False):
                 total_records = sum(c['records'] for c in msg['api_calls'])
                 
@@ -278,7 +281,6 @@ for msg in current_messages:
                 st.markdown("")
                 
                 for i, call in enumerate(msg['api_calls'], 1):
-                    # Compact, clean presentation
                     st.markdown(f"""
                     <div class="source-item">
                         <div class="source-title">Source {i}: {call['dataset']}</div>
@@ -287,7 +289,6 @@ for msg in current_messages:
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # Show API URL in collapsible section
                     with st.expander(f"🔗 View API endpoint", expanded=False):
                         st.code(call['url'], language='text')
                 
@@ -322,119 +323,116 @@ if user_input:
         try:
             with st.spinner("✨ Generating answer..."):
                 
-                # Check for greetings
-                chat_type = is_greeting_or_simple_chat(user_input)
+                # FIXED: Let Gemini handle ALL questions naturally
+                # Check if it's an agriculture-related question
+                is_agriculture_query = check_if_agriculture_query(user_input)
                 
-                if chat_type == 'greeting':
-                    response = "Hello! 👋 I'm SAMARTH, your agriculture and climate data assistant.\n\nI can help you analyze:\n- 🌧️ Rainfall patterns across states\n- 🌾 Crop production trends\n- 📊 District-level comparisons\n- 💧 Water efficiency recommendations\n\nTry the example questions in the sidebar!"
+                if not is_agriculture_query:
+                    # Let Gemini respond naturally to out-of-scope questions
+                    response_result = handle_general_query(user_input)
                     
                     sys.stdout = old_stdout
-                    st.markdown(response)
-                    add_message('assistant', response)
+                    st.markdown(response_result['answer'])
+                    add_message('assistant', response_result['answer'])  # NO api_calls for non-data questions
                 
-                elif chat_type == 'help':
-                    response = "I can help you with questions about Indian agriculture and climate data!\n\n**Available:**\n- 📍 33 states\n- 🌾 100+ crops\n- 📅 Rainfall: 1901-2017\n- 📅 Crops: 1997-2014\n\n**Check the sidebar for examples!**"
-                    
-                    sys.stdout = old_stdout
-                    st.markdown(response)
-                    add_message('assistant', response)
-                
-                # Parse and validate
-                parsed = parse_user_question(user_input)
-                
-                if not parsed['success']:
-                    error_msg = "❌ I couldn't understand your question.\n\n💡 Include:\n- State names (Punjab, Haryana, etc.)\n- Crop types (wheat, rice, etc.)\n- Time periods (2010-2014, etc.)\n\n📌 Check sidebar for examples!"
-                    
-                    sys.stdout = old_stdout
-                    st.markdown(error_msg)
-                    add_message('assistant', error_msg)
-                
-                validation = validate_parsed_query(parsed)
-                
-                if not validation['valid']:
-                    if validation['type'] == 'out_of_scope':
-                        error_msg = f"❌ {validation['reason']}\n\n💡 **Ask about agriculture/climate only:**\n- Crop production\n- Rainfall patterns\n- District data\n- Irrigation methods\n\n📌 Try sidebar examples!"
-                    elif validation['type'] == 'too_vague':
-                        error_msg = f"❌ {validation['reason']}\n\n💡 **Be specific:**\n- States: Punjab, Maharashtra, etc.\n- Crops: wheat, rice, cotton, etc.\n- Years: 2010-2014, etc.\n\n📌 Check sidebar!"
-                    else:
-                        error_msg = f"❌ {validation['reason']}"
-                        if validation.get('suggestions'):
-                            error_msg += f"\n\n💡 {validation['suggestions']}"
-                    
-                    sys.stdout = old_stdout
-                    st.markdown(error_msg)
-                    add_message('assistant', error_msg)
-                
-                # Fetch data
-                apis_needed = determine_required_apis(parsed)
-                
-                fetched_data = {}
-                api_calls_made = []
-                
-                for api_spec in apis_needed:
-                    if api_spec['api'] == 'rainfall':
-                        for state in api_spec['states']:
-                            key = f"rainfall_{state}"
-                            data = fetch_rainfall_annual(state, api_spec['years'])
-                            if data.get('success'):
-                                fetched_data[key] = data
-                                api_calls_made.append({
-                                    'purpose': f'Rainfall data for {state} ({min(api_spec["years"])}-{max(api_spec["years"])})',
-                                    'url': data.get('api_url', 'N/A'),
-                                    'records': data.get('total_matched', 0),
-                                    'dataset': 'IMD Rainfall Data'
-                                })
-                    
-                    elif api_spec['api'] == 'crops':
-                        for state in api_spec['states']:
-                            key = f"crops_{state}"
-                            year = max(api_spec['years']) if api_spec['years'] else 2014
-                            crop = api_spec['crops'][0] if api_spec['crops'] else None
-                            data = fetch_crop_production(state, crop_name=crop, year=year)
-                            if data.get('success'):
-                                fetched_data[key] = data
-                                api_calls_made.append({
-                                    'purpose': f'Crop production for {state} in {year}',
-                                    'url': data.get('api_url', 'N/A'),
-                                    'records': data.get('total_records', 0),
-                                    'dataset': 'Ministry of Agriculture - Crop Production'
-                                })
-                    
-                    elif api_spec['api'] == 'water':
-                        crops_to_check = api_spec['crops'] if api_spec['crops'] else ['Cotton']
-                        for crop in crops_to_check:
-                            if crop in WATER_USAGE_CROPS:
-                                key = f"water_{crop}"
-                                data = fetch_water_usage(crop)
-                                if data.get('success'):
-                                    fetched_data[key] = data
-                                    api_calls_made.append({
-                                        'purpose': f'Water efficiency data for {crop}',
-                                        'url': data.get('api_url', 'N/A'),
-                                        'records': data.get('total_records', 0),
-                                        'dataset': 'ICAR Water Efficiency Comparison'
-                                    })
-                
-                if not fetched_data:
-                    error_msg = "❌ No data found.\n\n**Try:**\n- States: Punjab, Haryana, Maharashtra\n- Years: 2010-2014\n- Crops: wheat, rice, cotton\n\n📌 Check sidebar for availability!"
-                    
-                    sys.stdout = old_stdout
-                    st.markdown(error_msg)
-                    add_message('assistant', error_msg)
-                
-                # Generate answer
-                answer_result = generate_intelligent_answer(user_input, parsed, fetched_data)
-                
-                # Restore stdout
-                sys.stdout = old_stdout
-                
-                if answer_result['success']:
-                    st.markdown(answer_result['answer'])
-                    add_message('assistant', answer_result['answer'], api_calls=api_calls_made)
                 else:
-                    error_msg = f"❌ Error: {answer_result.get('error')}"
-                    st.markdown(error_msg)
-                    add_message('assistant', error_msg)
+                    # Parse and validate for agriculture queries
+                    parsed = parse_user_question(user_input)
+                    
+                    if not parsed['success']:
+                        error_msg = f"❌ I couldn't understand your question.\n\n{parsed.get('error', '')}\n\n💡 **Try:**\n- State names (Punjab, Haryana)\n- Crop types (wheat, rice)\n- Time periods (2010-2014)\n\n📌 Check sidebar for examples!"
+                        
+                        sys.stdout = old_stdout
+                        st.markdown(error_msg)
+                        add_message('assistant', error_msg)  # NO api_calls for errors
+                    else:
+                        validation = validate_parsed_query(parsed)
+                        
+                        if not validation['valid']:
+                            if validation['type'] == 'out_of_scope':
+                                error_msg = f"❌ {validation['reason']}\n\n💡 **Ask about agriculture/climate only:**\n- Crop production\n- Rainfall patterns\n- District data\n- Irrigation methods\n\n📌 Try sidebar examples!"
+                            elif validation['type'] == 'too_vague':
+                                error_msg = f"❌ {validation['reason']}\n\n💡 **Be specific:**\n- States: Punjab, Maharashtra, etc.\n- Crops: wheat, rice, cotton, etc.\n- Years: 2010-2014, etc.\n\n📌 Check sidebar!"
+                            else:
+                                error_msg = f"❌ {validation['reason']}"
+                                if validation.get('suggestions'):
+                                    error_msg += f"\n\n💡 {validation['suggestions']}"
+                            
+                            sys.stdout = old_stdout
+                            st.markdown(error_msg)
+                            add_message('assistant', error_msg)  # NO api_calls for errors
+                        else:
+                            # Fetch data for valid agriculture queries
+                            apis_needed = determine_required_apis(parsed)
+                            
+                            fetched_data = {}
+                            api_calls_made = []
+                            
+                            for api_spec in apis_needed:
+                                if api_spec['api'] == 'rainfall':
+                                    for state in api_spec['states']:
+                                        key = f"rainfall_{state}"
+                                        data = fetch_rainfall_annual(state, api_spec['years'])
+                                        if data.get('success'):
+                                            fetched_data[key] = data
+                                            api_calls_made.append({
+                                                'purpose': f'Rainfall data for {state} ({min(api_spec["years"])}-{max(api_spec["years"])})',
+                                                'url': data.get('api_url', 'N/A'),
+                                                'records': data.get('total_matched', 0),
+                                                'dataset': 'IMD Rainfall Data'
+                                            })
+                                
+                                elif api_spec['api'] == 'crops':
+                                    for state in api_spec['states']:
+                                        key = f"crops_{state}"
+                                        year = max(api_spec['years']) if api_spec['years'] else 2014
+                                        crop = api_spec['crops'][0] if api_spec['crops'] else None
+                                        data = fetch_crop_production(state, crop_name=crop, year=year)
+                                        if data.get('success'):
+                                            fetched_data[key] = data
+                                            api_calls_made.append({
+                                                'purpose': f'Crop production for {state} in {year}',
+                                                'url': data.get('api_url', 'N/A'),
+                                                'records': data.get('total_records', 0),
+                                                'dataset': 'Ministry of Agriculture - Crop Production'
+                                            })
+                                
+                                elif api_spec['api'] == 'water':
+                                    crops_to_check = api_spec['crops'] if api_spec['crops'] else ['Cotton']
+                                    for crop in crops_to_check:
+                                        if crop in WATER_USAGE_CROPS:
+                                            key = f"water_{crop}"
+                                            data = fetch_water_usage(crop)
+                                            if data.get('success'):
+                                                fetched_data[key] = data
+                                                api_calls_made.append({
+                                                    'purpose': f'Water efficiency data for {crop}',
+                                                    'url': data.get('api_url', 'N/A'),
+                                                    'records': data.get('total_records', 0),
+                                                    'dataset': 'ICAR Water Efficiency Comparison'
+                                                })
+                            
+                            if not fetched_data:
+                                error_msg = "❌ No data found.\n\n**Try:**\n- States: Punjab, Haryana, Maharashtra\n- Years: 2010-2014\n- Crops: wheat, rice, cotton\n\n📌 Check sidebar for availability!"
+                                
+                                sys.stdout = old_stdout
+                                st.markdown(error_msg)
+                                add_message('assistant', error_msg)  # NO api_calls when no data
+                            else:
+                                # Generate answer
+                                answer_result = generate_intelligent_answer(user_input, parsed, fetched_data)
+                                
+                                # Restore stdout
+                                sys.stdout = old_stdout
+                                
+                                if answer_result['success']:
+                                    st.markdown(answer_result['answer'])
+                                    # FIXED: Only add api_calls when we have actual data
+                                    add_message('assistant', answer_result['answer'], api_calls=api_calls_made)
+                                else:
+                                    error_msg = f"❌ Error: {answer_result.get('error')}"
+                                    st.markdown(error_msg)
+                                    add_message('assistant', error_msg)  # NO api_calls for errors
         
         except Exception as e:
             # Restore stdout in case of error
