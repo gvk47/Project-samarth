@@ -15,57 +15,104 @@ model = genai.GenerativeModel(GEMINI_MODEL)
 
 def check_if_agriculture_query(question):
     """
-    Determine if a question is about agriculture/climate data
-    Returns True if agriculture-related, False if general chat/out-of-scope
+    Determine if a question is about agriculture/climate data that requires data fetching
+    Returns True if agriculture-related and needs data, False for general questions
     """
     question_lower = question.lower()
     
-    # Agriculture keywords
-    agriculture_keywords = [
-        'crop', 'rain', 'rainfall', 'production', 'agriculture', 'wheat', 'rice',
-        'irrigation', 'harvest', 'farming', 'cultivation', 'paddy', 'maize',
-        'district', 'state', 'yield', 'water', 'climate', 'drip', 'cotton',
-        'punjab', 'haryana', 'maharashtra', 'karnataka', 'tamil nadu',
-        'data', 'compare', 'trend', 'production', 'highest', 'lowest',
-        'crop_year', 'annual', 'season', 'kharif', 'rabi'
+    # Simple greetings and pleasantries - handle conversationally
+    simple_phrases = [
+        'hello', 'hi', 'hey', 'thanks', 'thank you', 'bye', 'goodbye', 
+        'ok', 'okay', 'cool', 'great', 'awesome', 'good', 'nice',
+        'how are you', 'what is your name', 'who are you', 'what can you do'
     ]
     
-    # Check if any agriculture keyword is present
-    has_agriculture_keyword = any(keyword in question_lower for keyword in agriculture_keywords)
+    for phrase in simple_phrases:
+        if question_lower.strip() == phrase or question_lower.strip().startswith(phrase):
+            return False
     
-    # Short greetings are definitely not agriculture queries
-    simple_greetings = ['hello', 'hi', 'hey', 'thanks', 'thank you', 'bye', 'goodbye', 'ok', 'okay']
-    is_simple_greeting = question_lower.strip() in simple_greetings or len(question.split()) <= 3
-    
-    if is_simple_greeting:
+    # Very short questions are likely conversational
+    if len(question.split()) <= 3 and '?' not in question:
         return False
     
-    return has_agriculture_keyword
+    # Agriculture/data keywords that indicate need for data fetching
+    data_keywords = [
+        'crop', 'rain', 'rainfall', 'production', 'wheat', 'rice', 'cotton',
+        'irrigation', 'harvest', 'farming', 'cultivation', 'paddy', 'maize',
+        'district', 'yield', 'drip', 'traditional', 'water usage',
+        'compare', 'trend', 'highest', 'lowest', 'average', 'total',
+        'punjab', 'haryana', 'maharashtra', 'karnataka', 'tamil nadu',
+        'uttar pradesh', 'madhya pradesh', 'andhra pradesh', 'telangana',
+        'annual', 'season', 'kharif', 'rabi', 'data', 'statistics',
+        'production', 'area', 'productivity', 'hectare', 'tonne'
+    ]
+    
+    # Only return True if question has data keywords AND seems to ask for specific information
+    has_data_keyword = any(keyword in question_lower for keyword in data_keywords)
+    asks_for_info = any(word in question_lower for word in ['what', 'which', 'how', 'compare', 'show', 'tell', 'find', 'get', 'analyze', 'list'])
+    
+    return has_data_keyword and asks_for_info
 
 def handle_general_query(question):
     """
-    Let Gemini handle non-agriculture queries naturally and gracefully
+    Handle non-agriculture queries with professionalism and respect
+    Provides helpful, contextual responses for any question
     """
     prompt = f"""
-You are SAMARTH, an intelligent Q&A system specialized in Indian agriculture and climate data.
+You are SAMARTH, an intelligent assistant specializing in Indian agriculture and climate data analysis.
 
 USER QUESTION: "{question}"
 
-This question appears to be outside your area of expertise (agriculture and climate data for Indian states).
+CONTEXT: This question doesn't require data fetching from agricultural databases. Respond naturally and professionally.
 
-TASK: Respond naturally and helpfully. 
+RESPONSE GUIDELINES:
+1. **Be Professional & Respectful**: Treat every question with courtesy and intelligence
+2. **Be Helpful**: Provide useful information when you can
+3. **Be Conversational**: Use a warm, natural tone - not robotic
+4. **Be Honest**: If you don't know something, say so politely
+5. **Stay on Brand**: Mention your agriculture expertise when relevant, but don't force it
 
-GUIDELINES:
-- Be friendly and conversational
-- Acknowledge what you CAN help with (agriculture, climate, crop data for India)
-- Don't be robotic or overly formal
-- Don't mention "I'm an AI" or "my programming"
-- Keep response under 100 words
-- If it's a greeting, respond warmly and briefly mention what you can help with
-- If it's a thank you, respond graciously
-- If it's completely off-topic, politely redirect to agriculture/climate topics
+RESPONSE TYPES:
 
-Generate a natural, helpful response:
+**For Greetings/Pleasantries:**
+- Respond warmly and briefly mention what you can help with
+- Example: "Hello! I'm SAMARTH, specialized in Indian agriculture and climate data. I can help you analyze crop production, rainfall patterns, and irrigation efficiency across Indian states. What would you like to know?"
+
+**For Questions About You:**
+- Be friendly and informative about your capabilities
+- Example: "I'm SAMARTH, an AI assistant that answers questions about Indian agriculture using real-time government data. I can compare states, analyze trends, find extremes, and provide data-backed recommendations!"
+
+**For Thanks/Acknowledgments:**
+- Respond graciously
+- Example: "You're welcome! Feel free to ask about any agriculture or climate data for Indian states."
+
+**For General Knowledge Questions:**
+- Answer if you can (based on your training)
+- Be honest if it's outside your expertise
+- Example: "That's an interesting question about [topic]. While I specialize in Indian agriculture data, I can tell you that [answer]. For more detailed information on [topic], I'd recommend consulting specialized sources."
+
+**For Off-Topic Questions:**
+- Acknowledge the question respectfully
+- Gently redirect to your strengths
+- Example: "That's a great question about [topic]! While my expertise is focused on Indian agriculture and climate data, I'd be happy to help you analyze crop production, rainfall patterns, or water efficiency for any Indian state."
+
+**For Unclear Questions:**
+- Ask for clarification politely
+- Example: "I'd be happy to help! Could you clarify what you'd like to know? I specialize in Indian agriculture data - things like crop production, rainfall, and irrigation efficiency."
+
+KEEP IT:
+- Under 100 words for simple questions
+- Natural and conversational
+- Respectful and professional
+- Focused but flexible
+
+DO NOT:
+- Say "I'm just an AI" or "my programming"
+- Refuse to engage with non-agriculture topics rudely
+- Over-explain or be verbose
+- Be robotic or overly formal
+
+Generate your response:
 """
     
     try:
@@ -77,16 +124,16 @@ Generate a natural, helpful response:
                 'answer': gemini_response['text']
             }
         else:
-            # Fallback for Gemini errors
+            # Fallback for Gemini errors - warm and helpful
             return {
                 'success': True,
-                'answer': "Hello! I'm SAMARTH, specializing in Indian agriculture and climate data. I can help you analyze crop production, rainfall patterns, and irrigation data across Indian states. Try asking about crops, rainfall, or districts!"
+                'answer': "Hello! I'm SAMARTH, your assistant for Indian agriculture and climate data. I can help you analyze crop production, rainfall patterns, and irrigation efficiency across Indian states. What would you like to explore?"
             }
     except Exception as e:
-        # Fallback response
+        # Fallback response - still warm and professional
         return {
             'success': True,
-            'answer': "Hello! I'm here to help with questions about Indian agriculture and climate data. Feel free to ask about crop production, rainfall patterns, or water usage across different states!"
+            'answer': "Hi there! I'm SAMARTH, specialized in Indian agriculture and climate data. I can help you compare states, analyze trends, and explore crop production data. What would you like to know?"
         }
 
 def call_gemini_with_retry(prompt, max_attempts=GEMINI_MAX_ATTEMPTS):
