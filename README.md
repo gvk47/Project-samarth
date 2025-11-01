@@ -6,9 +6,8 @@
 [![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 
 > Natural language Q&A system using real-time government data and AI
-
-**🔗 Live Demo:** [YOUR_DEPLOYED_URL_HERE](https://your-app.streamlit.app)  
-**📹 Video Demo:** [YOUR_LOOM_URL_HERE](https://loom.com/share/your-video)
+  
+**📹 Video Demo:** https://www.loom.com/share/a94f9c1dd1844c4bad38c1974d6d7a5d
 
 ---
 
@@ -246,3 +245,4 @@ Challenge submission showcasing:
 ---
 
 **Made with ❤️ for Indian Agriculture**
+
