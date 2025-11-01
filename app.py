@@ -1,6 +1,6 @@
 # app.py
 # Main Streamlit application - Project SAMARTH
-# Production-ready version with full optimization
+# PRODUCTION-READY VERSION with comprehensive error handling and optimization
 
 import streamlit as st
 from metadata import *
@@ -19,7 +19,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS - PRODUCTION OPTIMIZED
+# Custom CSS - PRODUCTION OPTIMIZED with ULTRA COMPACT SIDEBAR
 st.markdown("""
 <style>
     .main-header {
@@ -95,7 +95,7 @@ st.markdown("""
     .example-question-text {
         font-size: 0.7rem;
         line-height: 1.4;
-        color: #ccc;
+        color: #333;
     }
     
     .stChatMessage {
@@ -242,7 +242,7 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # FIXED: Example questions as EXPANDERS (not tooltips)
+    # Example questions as EXPANDERS
     st.markdown("## 💡 Examples")
     
     questions = [
@@ -344,7 +344,7 @@ if user_input:
     add_message('user', user_input)
     
     with st.chat_message("assistant"):
-        # Redirect stdout to hide print statements
+        # Redirect stdout to hide print statements (but keep for debugging)
         old_stdout = sys.stdout
         sys.stdout = StringIO()
         
@@ -406,12 +406,15 @@ if user_input:
                                                 'records': data.get('total_matched', 0),
                                                 'dataset': 'IMD Rainfall Data'
                                             })
+                                        else:
+                                            # Store failed fetches too
+                                            fetched_data[key] = data
                                 
                                 elif api_spec['api'] == 'crops':
                                     for state in api_spec['states']:
                                         key = f"crops_{state}"
-                                        year = max(api_spec['years']) if api_spec['years'] else 2014
-                                        crop = api_spec['crops'][0] if api_spec['crops'] else None
+                                        year = max(api_spec['years']) if api_spec.get('years') else 2014
+                                        crop = api_spec['crops'][0] if api_spec.get('crops') else None
                                         data = fetch_crop_production(state, crop_name=crop, year=year)
                                         if data.get('success'):
                                             fetched_data[key] = data
@@ -421,9 +424,11 @@ if user_input:
                                                 'records': data.get('total_records', 0),
                                                 'dataset': 'Ministry of Agriculture - Crop Production'
                                             })
+                                        else:
+                                            fetched_data[key] = data
                                 
                                 elif api_spec['api'] == 'water':
-                                    crops_to_check = api_spec['crops'] if api_spec['crops'] else ['Cotton']
+                                    crops_to_check = api_spec.get('crops', ['Cotton'])
                                     for crop in crops_to_check:
                                         if crop in WATER_USAGE_CROPS:
                                             key = f"water_{crop}"
@@ -436,9 +441,30 @@ if user_input:
                                                     'records': data.get('total_records', 0),
                                                     'dataset': 'ICAR Water Efficiency Comparison'
                                                 })
+                                            else:
+                                                fetched_data[key] = data
                             
-                            if not fetched_data:
-                                error_msg = "❌ No data found.\n\n**Try:**\n- States: Punjab, Haryana, Maharashtra\n- Years: 2010-2014\n- Crops: wheat, rice, cotton\n\n📌 Check sidebar for availability!"
+                            # Check if all APIs failed (network issue vs no data)
+                            all_failed, network_issue = check_all_apis_failed(fetched_data)
+                            
+                            if all_failed:
+                                if network_issue:
+                                    error_msg = "🌐 **Network Issue Detected**\n\n"
+                                    error_msg += "Government data servers are currently slow or unavailable. This is a temporary issue.\n\n"
+                                    error_msg += "**Please try:**\n"
+                                    error_msg += "- Wait 30 seconds and try again\n"
+                                    error_msg += "- Check your internet connection\n"
+                                    error_msg += "- Try a different question\n\n"
+                                    error_msg += "💡 The data.gov.in servers experience high traffic during business hours."
+                                else:
+                                    error_msg = "❌ No data found matching your query.\n\n**Please try:**\n- States: Punjab, Haryana, Maharashtra\n- Years: 2010-2014\n- Crops: wheat, rice, cotton\n\n📌 Check sidebar for data availability!"
+                                
+                                sys.stdout = old_stdout
+                                st.markdown(error_msg)
+                                add_message('assistant', error_msg)
+                            elif not any(d.get('success') for d in fetched_data.values()):
+                                # Some data fetched but none successful
+                                error_msg = "❌ No valid data retrieved.\n\n**Try:**\n- Different states or years\n- Check sidebar for data availability\n- Ensure spelling is correct\n\n📌 Example: 'Compare rainfall in Punjab and Haryana for 2010-2014'"
                                 
                                 sys.stdout = old_stdout
                                 st.markdown(error_msg)
@@ -453,18 +479,37 @@ if user_input:
                                     st.markdown(answer_result['answer'])
                                     add_message('assistant', answer_result['answer'], api_calls=api_calls_made)
                                 else:
-                                    error_msg = f"❌ Error: {answer_result.get('error')}"
+                                    error_msg = f"⚠️ {answer_result.get('error', 'Error generating answer')}\n\n💡 Please try rephrasing your question."
                                     st.markdown(error_msg)
                                     add_message('assistant', error_msg)
             
             # Force garbage collection after each question
             gc.collect()
         
+        except KeyboardInterrupt:
+            # Handle user cancellation
+            sys.stdout = old_stdout
+            st.warning("⏹️ Cancelled by user.")
+            
         except Exception as e:
             sys.stdout = old_stdout
-            error_msg = f"❌ An error occurred. Please try again or use a different question."
+            
+            # More helpful error messages
+            error_str = str(e)
+            if 'api-key' in error_str.lower() or 'unauthorized' in error_str.lower():
+                error_msg = "🔑 **API Key Issue**\n\nPlease check your config.py file and ensure:\n- DATA_GOV_API_KEY is set correctly\n- GEMINI_API_KEY is set correctly\n\nGet your keys from:\n- data.gov.in (free registration)\n- makersuite.google.com/app/apikey"
+            elif 'timeout' in error_str.lower():
+                error_msg = "⏱️ **Request Timeout**\n\nThe servers are taking too long to respond. Please try again in a moment."
+            else:
+                error_msg = f"❌ An unexpected error occurred. Please try again or use a different question.\n\n💡 If the problem persists, check the sidebar examples."
+            
             st.error(error_msg)
             add_message('assistant', error_msg)
+            
+            # Log error for debugging (only in debug mode)
+            if hasattr(st, 'session_state') and st.session_state.get('debug_mode'):
+                st.exception(e)
+            
             gc.collect()
 
 # Footer
