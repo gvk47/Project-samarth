@@ -52,7 +52,7 @@ CACHE_TTL = 86400  # 24 hours
 # GEMINI CONFIGURATION
 # ============================================================================
 
-GEMINI_MODEL = "gemini-2.0-flash-exp"
+GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_MAX_ATTEMPTS = 20
 GEMINI_INITIAL_DELAY = 2
 
@@ -73,4 +73,5 @@ ENABLE_CACHING = True
 ENABLE_DEBUG_MODE = False
 SHOW_API_URLS = True
 ENABLE_PARALLEL_FETCHING = False
+
 
