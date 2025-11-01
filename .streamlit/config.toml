@@ -1,0 +1,26 @@
+# .streamlit/config.toml
+# Streamlit configuration for Project SAMARTH
+
+[theme]
+# Optional: Customize your app's appearance
+primaryColor = "#2E7D32"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F2F6"
+textColor = "#262730"
+font = "sans serif"
+
+[server]
+# Server settings
+headless = true
+port = 8501
+enableCORS = false
+enableXsrfProtection = true
+
+[browser]
+# Browser settings
+gatherUsageStats = false
+
+[runner]
+# Performance settings
+magicEnabled = true
+fastReruns = true
