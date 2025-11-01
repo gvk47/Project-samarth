@@ -11,41 +11,80 @@ from metadata import *
 genai.configure(api_key=GEMINI_KEY)
 model = genai.GenerativeModel('models/gemini-2.0-flash-exp')
 
-def is_greeting_or_simple_chat(question):
+def check_if_agriculture_query(question):
     """
-    Check if the question is just a greeting or simple chat
-    Uses word boundaries to avoid false matches like 'hi' in 'highest'
+    Determine if a question is about agriculture/climate data
+    Returns True if agriculture-related, False if general chat/out-of-scope
     """
-    import re
+    question_lower = question.lower()
     
-    question_lower = question.lower().strip()
+    # Agriculture keywords
+    agriculture_keywords = [
+        'crop', 'rain', 'rainfall', 'production', 'agriculture', 'wheat', 'rice',
+        'irrigation', 'harvest', 'farming', 'cultivation', 'paddy', 'maize',
+        'district', 'state', 'yield', 'water', 'climate', 'drip', 'cotton',
+        'punjab', 'haryana', 'maharashtra', 'karnataka', 'tamil nadu',
+        'data', 'compare', 'trend', 'production', 'highest', 'lowest'
+    ]
     
-    # Greetings - use word boundaries to avoid false matches
-    greetings = ['hello', 'hi', 'hey', 'good morning', 'good afternoon', 
-                 'good evening', 'namaste', 'greetings']
+    # Check if any agriculture keyword is present
+    has_agriculture_keyword = any(keyword in question_lower for keyword in agriculture_keywords)
     
-    # Check if the ENTIRE message is just a greeting (with optional punctuation)
-    if question_lower in greetings:
-        return 'greeting'
+    # Short greetings are definitely not agriculture queries
+    simple_greetings = ['hello', 'hi', 'hey', 'thanks', 'thank you', 'bye', 'goodbye']
+    is_simple_greeting = question_lower.strip() in simple_greetings or len(question.split()) <= 3
     
-    # Check for greetings as complete words (not substrings)
-    for greeting in greetings:
-        # Use word boundaries \b to match complete words only
-        pattern = r'\b' + re.escape(greeting) + r'\b'
-        if re.search(pattern, question_lower):
-            # Additional check: if it's only greeting + punctuation, it's a greeting
-            if len(question_lower.split()) <= 3:  # "hi there" or "hello!"
-                return 'greeting'
+    if is_simple_greeting:
+        return False
     
-    # Simple questions about the system
-    simple_questions = ['what can you do', 'what do you do', 'help me', 
-                       'how does this work', 'what is this', 'tell me about yourself']
+    return has_agriculture_keyword
+
+def handle_general_query(question):
+    """
+    Let Gemini handle non-agriculture queries naturally and gracefully
+    """
+    prompt = f"""
+You are SAMARTH, an intelligent Q&A system specialized in Indian agriculture and climate data.
+
+USER QUESTION: "{question}"
+
+This question appears to be outside your area of expertise (agriculture and climate data for Indian states).
+
+TASK: Respond naturally and helpfully. 
+
+GUIDELINES:
+- Be friendly and conversational
+- Acknowledge what you CAN help with (agriculture, climate, crop data for India)
+- Don't be robotic or overly formal
+- Don't mention "I'm an AI" or "my programming"
+- Keep response under 100 words
+- If it's a greeting, respond warmly and briefly mention what you can help with
+- If it's a thank you, respond graciously
+- If it's completely off-topic, politely redirect to agriculture/climate topics
+
+Generate a natural, helpful response:
+"""
     
-    for q in simple_questions:
-        if q in question_lower:
-            return 'help'
-    
-    return None
+    try:
+        gemini_response = call_gemini_with_retry(prompt, max_attempts=2)
+        
+        if gemini_response['success']:
+            return {
+                'success': True,
+                'answer': gemini_response['text']
+            }
+        else:
+            # Fallback for Gemini errors
+            return {
+                'success': True,
+                'answer': "Hello! I'm SAMARTH, specializing in Indian agriculture and climate data. I can help you analyze crop production, rainfall patterns, and irrigation data across Indian states. Try asking about crops, rainfall, or districts!"
+            }
+    except Exception as e:
+        # Fallback response
+        return {
+            'success': True,
+            'answer': "Hello! I'm here to help with questions about Indian agriculture and climate data. Feel free to ask about crop production, rainfall patterns, or water usage across different states!"
+        }
 
 def call_gemini_with_retry(prompt, max_attempts=3):
     """
@@ -231,38 +270,6 @@ def validate_parsed_query(parsed_data):
     
     parsed = parsed_data['parsed']
     entities = parsed.get('entities', {})
-    original_question = parsed_data.get('original_question', '').lower()
-    
-    # Check if it's a greeting or simple chat
-    chat_type = is_greeting_or_simple_chat(original_question)
-    if chat_type == 'greeting':
-        return {
-            'valid': False,
-            'reason': 'greeting',
-            'type': 'greeting'
-        }
-    elif chat_type == 'help':
-        return {
-            'valid': False,
-            'reason': 'help_request',
-            'type': 'help'
-        }
-    
-    # Check if agriculture-related
-    agriculture_keywords = [
-        'crop', 'rain', 'rainfall', 'production', 'agriculture', 'wheat', 'rice',
-        'irrigation', 'harvest', 'farming', 'cultivation', 'paddy', 'maize',
-        'district', 'state', 'cultivation', 'yield', 'water', 'climate',
-        'punjab', 'haryana', 'maharashtra', 'karnataka', 'tamil nadu'
-    ]
-    
-    if not any(keyword in original_question for keyword in agriculture_keywords):
-        return {
-            'valid': False,
-            'reason': 'This question is not related to agriculture or climate data.',
-            'type': 'out_of_scope',
-            'suggestion': 'Please ask questions about crop production, rainfall patterns, or agricultural practices in Indian states.'
-        }
     
     # Check for meaningful entities
     has_states = entities.get('states') and len(entities.get('states', [])) > 0
