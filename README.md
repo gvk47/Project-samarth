@@ -2,128 +2,247 @@
 
 **Intelligent Q&A System for Indian Agriculture & Climate Data**
 
-## 🎯 Challenge Solution
-This project answers complex natural language questions about Indian agriculture and climate by integrating real-time data from data.gov.in government portal.
+[![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io)
+[![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+
+> Natural language Q&A system using real-time government data and AI
+
+**🔗 Live Demo:** [YOUR_DEPLOYED_URL_HERE](https://your-app.streamlit.app)  
+**📹 Video Demo:** [YOUR_LOOM_URL_HERE](https://loom.com/share/your-video)
+
+---
+
+## 🎯 What It Does
+
+Ask questions about Indian agriculture in plain English, get intelligent answers backed by real-time government data:
+
+- **"Compare rainfall in Punjab and Haryana for 2010-2014"**
+- **"Which district in Punjab has highest wheat production?"**
+- **"Why promote drip irrigation for cotton in Maharashtra?"**
+
+---
 
 ## ✨ Features
-- ✅ Real-time API integration with government datasets
-- ✅ Natural language processing with Gemini AI
-- ✅ Multi-source data synthesis across inconsistent formats
-- ✅ Complete source traceability for every data point
-- ✅ Covers 33 states, 100+ crops, 120 years of rainfall data
 
-## 📊 Data Sources
-1. **IMD Rainfall Data** (1901-2017) - Sub-divisional monthly rainfall
-2. **Ministry of Agriculture** (1997-2014) - District-wise crop production
-3. **ICAR Water Efficiency** - Traditional vs drip irrigation comparison
+- 🗣️ **Natural Language Processing** - Ask in plain English
+- 📊 **Real-time Government Data** - Live from data.gov.in APIs
+- 🤖 **AI-Powered Analysis** - Gemini 2.0 for intelligent answers
+- 🔍 **Full Traceability** - All API sources visible & verifiable
+- 💾 **Smart Caching** - Fast responses with 24-hour cache
+- 🔄 **Auto-retry Logic** - Handles slow government servers
+- 📱 **Responsive UI** - Works on desktop and mobile
 
-## 🏗️ System Architecture
-```
-User Question 
-    → NLU Parser (Gemini AI)
-    → API Selector (Intelligent routing)
-    → Data Fetcher (Real-time APIs)
-    → Answer Generator (Gemini AI)
-    → Response with Citations
-```
+---
 
-## 🎯 Sample Questions (All 4 Types Supported)
+## 🚀 Quick Start (Local Development)
 
-**Q1: Multi-State Comparison**
-```
-Compare the average annual rainfall in Punjab and Haryana for 2010-2014. 
-Also list the top 3 most produced crops in each state during 2014.
-```
+### 1. Clone Repository
 
-**Q2: District Extremes**
-```
-Identify the district in Punjab with the highest wheat production in 2014 
-and compare with the district with lowest wheat production in Haryana.
-```
-
-**Q3: Trend Analysis**
-```
-Analyze rice production trend in Punjab from 2010 to 2014. 
-Correlate with rainfall pattern and provide impact summary.
-```
-
-**Q4: Policy Recommendation**
-```
-Why promote cotton cultivation with drip irrigation over traditional methods 
-in Maharashtra? Give 3 data-backed arguments using 2010-2014 data.
-```
-
-## 🚀 Quick Start
-
-### Local Development
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+git clone https://github.com/YOUR_USERNAME/project-samarth.git
+cd project-samarth
+```
 
-# Run the app
+### 2. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Get API Keys
+
+- **data.gov.in:** https://data.gov.in/ (free registration)
+- **Gemini API:** https://makersuite.google.com/app/apikey (free tier)
+
+### 4. Add Your Keys
+
+Create `.streamlit/secrets.toml`:
+
+```toml
+API_KEY = "your_data_gov_in_key"
+GEMINI_KEY = "your_gemini_key"
+```
+
+### 5. Run
+
+```bash
 streamlit run app.py
 ```
 
-### Configuration
-For local testing, update `config.py` with your API keys:
-- Gemini API key from Google AI Studio
-- data.gov.in API key from the portal
-
-## 🛠️ Tech Stack
-- **Frontend:** Streamlit
-- **AI/NLU:** Google Gemini 2.0 Flash
-- **Data APIs:** data.gov.in REST APIs
-- **Language:** Python 3.9+
-
-## 📂 Project Structure
-```
-project-samarth/
-├── app.py                 # Main Streamlit application
-├── gemini_handler.py      # NLU parsing & answer generation
-├── data_fetcher.py        # API integration & data fetching
-├── metadata.py            # State/crop mappings & validation
-├── config.py              # API keys & endpoints
-├── requirements.txt       # Python dependencies
-└── README.md             # This file
-```
-
-## 🎨 Key Design Decisions
-
-1. **State Mapping Layer** - Handles inconsistent naming between datasets (e.g., "Orissa" vs "Odisha")
-2. **Intelligent API Selection** - Automatically determines which APIs to call based on question intent
-3. **Multi-stage Processing** - Parse → Validate → Fetch → Generate for robust error handling
-4. **Source Traceability** - Every answer cites specific datasets, API endpoints, and record counts
-
-## 📝 Evaluation Criteria Coverage
-
-✅ **Problem Solving:** Navigated data.gov.in, identified relevant datasets, built working prototype  
-✅ **System Architecture:** Modular design with clear separation of concerns  
-✅ **Accuracy:** Real-time government data with validation  
-✅ **Traceability:** Complete citation system for all claims  
-✅ **Data Sovereignty:** Runs locally, secure deployment possible  
-
-## 🎥 Demo Video
-[Loom video link will be added here]
+Opens at `http://localhost:8501`
 
 ---
 
-Built for the Government Data Integration Challenge
+## 🌐 Deploy to Streamlit Cloud
+
+### Prerequisites
+- GitHub account
+- Streamlit Cloud account (free)
+- API keys (see above)
+
+### Deployment Steps
+
+1. **Push to GitHub**
+   ```bash
+   git add .
+   git commit -m "Initial commit"
+   git push origin main
+   ```
+
+2. **Deploy on Streamlit Cloud**
+   - Go to https://share.streamlit.io/
+   - Click "New app"
+   - Select your repo
+   - Set main file: `app.py`
+
+3. **Add Secrets**
+   - In app Settings → Secrets
+   - Add:
+     ```toml
+     API_KEY = "your_key"
+     GEMINI_KEY = "your_key"
+     ```
+
+4. **Done!** App deploys in ~2 minutes
+
+**📖 Detailed Guide:** See [STREAMLIT_CLOUD_GUIDE.md](STREAMLIT_CLOUD_GUIDE.md)
+
+---
+
+## 📊 Data Sources
+
+All data from official Indian government sources:
+
+1. **IMD Rainfall Data** (1901-2017)
+   - Sub-divisional annual rainfall
+   - India Meteorological Department
+
+2. **Crop Production** (1997-2014)
+   - District-wise, season-wise statistics
+   - Ministry of Agriculture & Farmers Welfare
+
+3. **Water Efficiency** (8 crops)
+   - Traditional vs drip irrigation
+   - ICAR (Indian Council of Agricultural Research)
+
+---
+
+## 🏗️ Architecture
+
+```
+User Question
+    ↓
+Gemini AI (Parse Query)
+    ↓
+Determine Required APIs
+    ↓
+Fetch Data (parallel, with retry)
+    ↓
+Gemini AI (Generate Answer)
+    ↓
+Display with Sources
 ```
 
 ---
 
-## 📤 Manual Upload Steps:
+## 💻 Tech Stack
 
-### **Step 2: Organize Your Files**
+- **Frontend:** Streamlit 1.40.1
+- **AI:** Google Gemini 2.0 Flash Exp
+- **APIs:** data.gov.in (3 datasets)
+- **Language:** Python 3.11
+- **Deployment:** Streamlit Cloud
+- **Caching:** Built-in Streamlit cache
 
-Your folder should look like this:
+---
+
+## 📁 Project Structure
+
 ```
 project-samarth/
-├── app.py                    (use app_compact.py - rename it)
-├── gemini_handler.py         (from document 3)
-├── data_fetcher.py           (from document 5)
-├── metadata.py               (from document 6)
-├── config.py                 (NEW - use the one above)
-├── requirements.txt          (NEW - use the one above)
-├── .gitignore               (NEW - use the one above)
-└── README.md                (NEW - use the one above)
+├── app.py                    # Main Streamlit app
+├── config.py                 # Configuration (reads from secrets)
+├── gemini_handler.py         # AI integration
+├── data_fetcher.py           # API data fetching
+├── metadata.py               # Data availability info
+├── requirements.txt          # Python dependencies
+├── .streamlit/
+│   ├── config.toml          # Streamlit settings
+│   └── secrets.toml         # API keys (local only, not in Git)
+├── .gitignore               # Protects secrets
+└── README.md                # This file
+```
+
+---
+
+## 🧪 Testing
+
+Try the 4 example questions from the sidebar:
+
+1. **Q1: Multi-State Comparison** - Tests state comparison, rainfall, crop aggregation
+2. **Q2: District Extremes** - Tests district-level data, extreme values
+3. **Q3: Trend Analysis** - Tests time series, correlation analysis
+4. **Q4: Policy Recommendation** - Tests water efficiency, AI reasoning
+
+---
+
+## 🐛 Common Issues
+
+### "API Key Error"
+→ Check secrets are added in `.streamlit/secrets.toml` (local) or Streamlit Cloud dashboard (deployed)
+
+### "Request Timeout"
+→ Normal - government servers can be slow. Wait 30s and retry.
+
+### "Module not found"
+→ Run `pip install -r requirements.txt`
+
+### App works locally but not on Streamlit Cloud
+→ Verify secrets are added in Streamlit Cloud dashboard (Settings → Secrets)
+
+---
+
+## 🔒 Security
+
+- ✅ API keys stored in secrets (never in code)
+- ✅ `.gitignore` protects `secrets.toml`
+- ✅ `config.py` safe to commit (reads from secrets)
+- ✅ No hardcoded credentials anywhere
+
+---
+
+## 📝 License
+
+Educational project for demonstration purposes.
+
+---
+
+## 🤝 Credits
+
+- **Data:** data.gov.in (Government of India)
+- **AI:** Google Gemini 2.0
+- **Framework:** Streamlit
+
+---
+
+## 📞 Support
+
+For issues:
+1. Check [STREAMLIT_CLOUD_GUIDE.md](STREAMLIT_CLOUD_GUIDE.md)
+2. Review error logs in Streamlit Cloud dashboard
+3. Verify API keys are valid
+
+---
+
+## 🎓 Built For
+
+Challenge submission showcasing:
+- Natural language processing
+- Multi-source data integration
+- Real-time API orchestration
+- Production-ready error handling
+- Modern web deployment
+
+---
+
+**Made with ❤️ for Indian Agriculture**
