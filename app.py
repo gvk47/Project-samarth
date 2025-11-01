@@ -325,7 +325,7 @@ for msg in current_messages:
         
         # Only show data sources when api_calls exist AND have data
         if msg['role'] == 'assistant' and 'api_calls' in msg and len(msg.get('api_calls', [])) > 0:
-            with st.expander("📊 Data Sources & Traceability", expanded=False):
+            with st.expander("📊 Data Sources", expanded=False):
                 total_records = sum(c.get('records', 0) for c in msg['api_calls'])
                 
                 st.markdown(f"**{len(msg['api_calls'])} data source(s) • {total_records} records processed**")
@@ -540,7 +540,7 @@ if user_input:
                                     
                                     # Show data sources immediately with the answer
                                     if api_calls_made:
-                                        with st.expander("📊 Data Sources & Traceability", expanded=False):
+                                        with st.expander("📊 Data Sources ", expanded=False):
                                             total_records = sum(c.get('records', 0) for c in api_calls_made)
                                             
                                             st.markdown(f"**{len(api_calls_made)} data source(s) • {total_records} records processed**")
@@ -603,3 +603,4 @@ st.markdown("""
     <p style='font-size: 0.7rem;'>Powered by Gemini AI • Real-time data from data.gov.in</p>
 </div>
 """, unsafe_allow_html=True)
+
