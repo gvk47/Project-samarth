@@ -35,6 +35,31 @@ st.markdown("""
         margin-bottom: 1.5rem;
     }
     
+    /* Scroll to bottom button */
+    .scroll-to-bottom {
+        position: fixed;
+        bottom: 80px;
+        left: 20px;
+        z-index: 999;
+        background-color: #2E7D32;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+    }
+    
+    .scroll-to-bottom:hover {
+        background-color: #1B5E20;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    
     /* ULTRA COMPACT SIDEBAR */
     [data-testid="stSidebar"] {
         font-size: 0.8rem;
@@ -324,6 +349,29 @@ for msg in current_messages:
 if not current_messages:
     st.info("👋 **Welcome to SAMARTH!** Ask questions about Indian agriculture and climate data, or try the example questions in the sidebar.")
 
+# Auto-scroll to bottom script
+st.markdown("""
+<script>
+    // Auto-scroll to bottom when new content is added
+    window.addEventListener('load', function() {
+        window.scrollTo(0, document.body.scrollHeight);
+    });
+    
+    // Scroll to bottom function
+    function scrollToBottom() {
+        window.scrollTo({
+            top: document.body.scrollHeight,
+            behavior: 'smooth'
+        });
+    }
+</script>
+
+<!-- Scroll to bottom button -->
+<button class="scroll-to-bottom" onclick="scrollToBottom()" title="Scroll to latest message">
+    ↓
+</button>
+""", unsafe_allow_html=True)
+
 # User input
 user_input = st.chat_input("Ask about agriculture and climate data...")
 
@@ -342,6 +390,18 @@ if user_input:
         st.markdown(user_input)
     
     add_message('user', user_input)
+    
+    # Trigger auto-scroll after adding message
+    st.markdown("""
+    <script>
+        setTimeout(function() {
+            window.parent.document.querySelector('section.main').scrollTo({
+                top: window.parent.document.querySelector('section.main').scrollHeight,
+                behavior: 'smooth'
+            });
+        }, 100);
+    </script>
+    """, unsafe_allow_html=True)
     
     with st.chat_message("assistant"):
         # Redirect stdout to hide print statements (but keep for debugging)
