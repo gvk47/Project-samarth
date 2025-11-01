@@ -147,6 +147,18 @@ st.markdown("""
         color: #666;
         margin: 0.2rem 0;
     }
+    
+    /* API URL display */
+    .api-url-box {
+        background-color: #f5f5f5;
+        border: 1px solid #ddd;
+        border-radius: 3px;
+        padding: 0.5rem;
+        margin-top: 0.3rem;
+        font-size: 0.75rem;
+        font-family: monospace;
+        word-break: break-all;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -156,6 +168,9 @@ if 'conversations' not in st.session_state:
 
 if 'current_conversation_id' not in st.session_state:
     st.session_state['current_conversation_id'] = None
+
+if 'pending_question' not in st.session_state:
+    st.session_state['pending_question'] = None
 
 # Helper functions
 def get_current_conversation():
@@ -242,8 +257,8 @@ with st.sidebar:
         if st.button(q['short'], key=f"sidebar_q_{i}", 
                     use_container_width=True, 
                     help=q['full']):
-            st.session_state['selected_question'] = q['full']
-            st.rerun()  # FIXED: Keep rerun for example questions
+            st.session_state['pending_question'] = q['full']
+            st.rerun()
     
     st.markdown("---")
     st.markdown("## 📊 Data")
@@ -273,24 +288,23 @@ for msg in current_messages:
         st.markdown(msg['content'])
         
         # FIXED: Only show data sources when api_calls exist AND have data
-        if msg['role'] == 'assistant' and 'api_calls' in msg and len(msg['api_calls']) > 0:
+        if msg['role'] == 'assistant' and 'api_calls' in msg and len(msg.get('api_calls', [])) > 0:
             with st.expander("📊 Data Sources & Traceability", expanded=False):
-                total_records = sum(c['records'] for c in msg['api_calls'])
+                total_records = sum(c.get('records', 0) for c in msg['api_calls'])
                 
                 st.markdown(f"**{len(msg['api_calls'])} data source(s) • {total_records} records processed**")
                 st.markdown("")
                 
                 for i, call in enumerate(msg['api_calls'], 1):
+                    # Compact, clean presentation - NO NESTED EXPANDER
                     st.markdown(f"""
                     <div class="source-item">
-                        <div class="source-title">Source {i}: {call['dataset']}</div>
-                        <div class="source-detail">📍 {call['purpose']}</div>
-                        <div class="source-detail">📊 {call['records']} records retrieved</div>
+                        <div class="source-title">Source {i}: {call.get('dataset', 'Unknown')}</div>
+                        <div class="source-detail">📍 {call.get('purpose', 'N/A')}</div>
+                        <div class="source-detail">📊 {call.get('records', 0)} records retrieved</div>
+                        <div class="api-url-box">🔗 {call.get('url', 'N/A')}</div>
                     </div>
                     """, unsafe_allow_html=True)
-                    
-                    with st.expander(f"🔗 View API endpoint", expanded=False):
-                        st.code(call['url'], language='text')
                 
                 st.markdown("---")
                 st.caption("💡 All data sourced in real-time from **data.gov.in** (Government of India Open Data Portal)")
@@ -303,13 +317,14 @@ if not current_messages:
 # User input
 user_input = st.chat_input("Ask about agriculture and climate data...")
 
-# Handle pre-built question
-if 'selected_question' in st.session_state and st.session_state.get('selected_question'):
-    user_input = st.session_state['selected_question']
-    st.session_state['selected_question'] = None
+# FIXED: Handle pre-built question from sidebar
+if st.session_state.get('pending_question'):
+    user_input = st.session_state['pending_question']
+    st.session_state['pending_question'] = None
 
 # Process question
 if user_input:
+    # FIXED: Display user message IMMEDIATELY
     with st.chat_message("user"):
         st.markdown(user_input)
     
@@ -437,7 +452,9 @@ if user_input:
         except Exception as e:
             # Restore stdout in case of error
             sys.stdout = old_stdout
-            st.error(f"An error occurred: {str(e)}")
+            error_msg = f"❌ An error occurred: {str(e)}"
+            st.error(error_msg)
+            add_message('assistant', error_msg)
 
 # Footer
 st.markdown("---")
