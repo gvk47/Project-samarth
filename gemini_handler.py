@@ -1,15 +1,17 @@
 # gemini_handler.py
 # This file handles all Gemini AI interactions
+# PRODUCTION VERSION with improved rate limiting and error handling
 
 import google.generativeai as genai
 import json
 import time
-from config import GEMINI_KEY
+import random
+from config import GEMINI_KEY, GEMINI_MODEL, GEMINI_MAX_ATTEMPTS, GEMINI_INITIAL_DELAY
 from metadata import *
 
 # Configure Gemini
 genai.configure(api_key=GEMINI_KEY)
-model = genai.GenerativeModel('models/gemini-2.0-flash-exp')
+model = genai.GenerativeModel(GEMINI_MODEL)
 
 def check_if_agriculture_query(question):
     """
@@ -24,14 +26,15 @@ def check_if_agriculture_query(question):
         'irrigation', 'harvest', 'farming', 'cultivation', 'paddy', 'maize',
         'district', 'state', 'yield', 'water', 'climate', 'drip', 'cotton',
         'punjab', 'haryana', 'maharashtra', 'karnataka', 'tamil nadu',
-        'data', 'compare', 'trend', 'production', 'highest', 'lowest'
+        'data', 'compare', 'trend', 'production', 'highest', 'lowest',
+        'crop_year', 'annual', 'season', 'kharif', 'rabi'
     ]
     
     # Check if any agriculture keyword is present
     has_agriculture_keyword = any(keyword in question_lower for keyword in agriculture_keywords)
     
     # Short greetings are definitely not agriculture queries
-    simple_greetings = ['hello', 'hi', 'hey', 'thanks', 'thank you', 'bye', 'goodbye']
+    simple_greetings = ['hello', 'hi', 'hey', 'thanks', 'thank you', 'bye', 'goodbye', 'ok', 'okay']
     is_simple_greeting = question_lower.strip() in simple_greetings or len(question.split()) <= 3
     
     if is_simple_greeting:
@@ -86,16 +89,17 @@ Generate a natural, helpful response:
             'answer': "Hello! I'm here to help with questions about Indian agriculture and climate data. Feel free to ask about crop production, rainfall patterns, or water usage across different states!"
         }
 
-def call_gemini_with_retry(prompt, max_attempts=3):
+def call_gemini_with_retry(prompt, max_attempts=GEMINI_MAX_ATTEMPTS):
     """
     Call Gemini API with retry logic for rate limits and other errors
+    Uses exponential backoff with jitter for better reliability
     
     Args:
         prompt: The prompt to send to Gemini
-        max_attempts: Maximum number of attempts
+        max_attempts: Maximum number of attempts (default from config)
     
     Returns:
-        Response text or error dictionary
+        Response dict with success flag and text/error
     """
     for attempt in range(max_attempts):
         try:
@@ -108,46 +112,55 @@ def call_gemini_with_retry(prompt, max_attempts=3):
             # Handle rate limiting (429 error)
             if '429' in error_str or 'quota' in error_str or 'rate limit' in error_str:
                 if attempt < max_attempts - 1:
-                    wait_time = 10 * (attempt + 1)  # 10s, 20s, 30s
-                    print(f"⏱️ Gemini rate limit hit, waiting {wait_time}s... (Attempt {attempt + 1}/{max_attempts})")
+                    # Exponential backoff with jitter: 2s, 5s, 10s (+ random 0-2s)
+                    wait_time = min(GEMINI_INITIAL_DELAY * (2 ** attempt) + random.uniform(0, 2), 15)
+                    print(f"⏱️ Gemini rate limit hit, waiting {wait_time:.1f}s... (Attempt {attempt + 1}/{max_attempts})")
                     time.sleep(wait_time)
                 else:
                     return {
                         'success': False,
                         'error': 'rate_limit',
-                        'message': 'Too many requests to AI service. Please wait a moment and try again.'
+                        'message': '⏱️ AI service is busy right now. Please wait a moment and try again.'
                     }
             
             # Handle timeout
             elif 'timeout' in error_str:
                 if attempt < max_attempts - 1:
-                    wait_time = 5 * (attempt + 1)
-                    print(f"⏱️ Gemini timeout, retrying in {wait_time}s... (Attempt {attempt + 1}/{max_attempts})")
+                    wait_time = GEMINI_INITIAL_DELAY * (attempt + 1) + random.uniform(0, 1)
+                    print(f"⏱️ Gemini timeout, retrying in {wait_time:.1f}s... (Attempt {attempt + 1}/{max_attempts})")
                     time.sleep(wait_time)
                 else:
                     return {
                         'success': False,
                         'error': 'timeout',
-                        'message': 'AI service is taking too long to respond. Please try again.'
+                        'message': '⏱️ AI service is taking too long. Please try again.'
                     }
+            
+            # Handle blocked content
+            elif 'blocked' in error_str or 'safety' in error_str:
+                return {
+                    'success': False,
+                    'error': 'blocked',
+                    'message': '⚠️ Unable to process this query. Please rephrase your question.'
+                }
             
             # Handle other API errors
             else:
                 if attempt < max_attempts - 1:
-                    wait_time = 3 * (attempt + 1)
-                    print(f"⚠️ Gemini error: {str(e)}, retrying in {wait_time}s... (Attempt {attempt + 1}/{max_attempts})")
+                    wait_time = GEMINI_INITIAL_DELAY + random.uniform(0, 1)
+                    print(f"⚠️ Gemini error: {str(e)[:100]}, retrying in {wait_time:.1f}s... (Attempt {attempt + 1}/{max_attempts})")
                     time.sleep(wait_time)
                 else:
                     return {
                         'success': False,
                         'error': 'api_error',
-                        'message': f'AI service error: {str(e)}'
+                        'message': f'⚠️ AI service error. Please try again. (Details: {str(e)[:100]})'
                     }
     
     return {
         'success': False,
         'error': 'max_attempts',
-        'message': 'Failed after multiple attempts. Please try again later.'
+        'message': '⚠️ Failed after multiple attempts. Please try again later.'
     }
 
 def parse_user_question(user_question):
@@ -199,16 +212,17 @@ RULES:
 - If asking about trends over time, intent is "trend"
 - If asking for highest/lowest/best/worst, intent is "extreme"
 - If asking for recommendations/reasons, intent is "policy"
+- Normalize state names properly (e.g., "UP" → "Uttar Pradesh")
 """
     
     try:
         # Call Gemini with retry logic
-        gemini_response = call_gemini_with_retry(prompt, max_attempts=3)
+        gemini_response = call_gemini_with_retry(prompt, max_attempts=GEMINI_MAX_ATTEMPTS)
         
         if not gemini_response['success']:
             return {
                 'success': False,
-                'error': gemini_response['message']
+                'error': gemini_response.get('message', 'Failed to parse question')
             }
         
         response_text = gemini_response['text']
@@ -246,13 +260,13 @@ RULES:
         print(f"❌ Failed to parse JSON from Gemini")
         return {
             'success': False,
-            'error': 'Could not understand the question format. Please try rephrasing.'
+            'error': 'Could not understand the question format. Please try rephrasing with clearer state names, crop types, and time periods.'
         }
     except Exception as e:
-        print(f"❌ Error: {str(e)}")
+        print(f"❌ Error: {str(e)[:200]}")
         return {
             'success': False,
-            'error': f'Unexpected error: {str(e)}'
+            'error': f'Unexpected error parsing question. Please try again.'
         }
 
 def validate_parsed_query(parsed_data):
@@ -290,13 +304,14 @@ def validate_parsed_query(parsed_data):
     # Validate states
     for state in entities.get('states', []):
         if not validate_state(state):
-            issues.append(f"State '{state}' not available")
+            issues.append(f"State '{state}' not available. Check sidebar for available states.")
     
     # Validate years for crops
     if 'production' in entities.get('metrics', []) or entities.get('crops'):
         for year in entities.get('years', []):
             if year and not validate_year_for_crops(year):
                 issues.append(f"Crop data only available for 1997-2014")
+                break  # Only show once
     
     # Validate water usage crops
     if 'water' in str(entities.get('metrics', [])).lower():
@@ -463,23 +478,24 @@ INSTRUCTIONS:
 7. Do NOT mention "based on the data" - just answer naturally
 8. Keep the answer focused and under 200 words
 9. Format with markdown for readability (use bold, bullet points)
+10. Be precise with numbers and units
 
 Generate a clear, direct answer:
 """
     
     try:
         # Call Gemini with retry logic
-        gemini_response = call_gemini_with_retry(prompt, max_attempts=3)
+        gemini_response = call_gemini_with_retry(prompt, max_attempts=GEMINI_MAX_ATTEMPTS)
         
         if not gemini_response['success']:
             return {
                 'success': False,
-                'error': gemini_response['message']
+                'error': gemini_response.get('message', 'Failed to generate answer')
             }
         
         answer = gemini_response['text']
         
-        print(f"✅ Answer generated!")
+        print(f"✅ Answer generated ({len(answer)} chars)")
         
         return {
             'success': True,
@@ -488,8 +504,8 @@ Generate a clear, direct answer:
         }
         
     except Exception as e:
-        print(f"❌ Error generating answer: {str(e)}")
+        print(f"❌ Error generating answer: {str(e)[:200]}")
         return {
             'success': False,
-            'error': f'Error generating answer: {str(e)}'
+            'error': f'⚠️ Error generating answer. Please try again.'
         }
