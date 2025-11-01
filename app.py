@@ -477,6 +477,29 @@ if user_input:
                                 
                                 if answer_result['success']:
                                     st.markdown(answer_result['answer'])
+                                    
+                                    # Show data sources immediately with the answer
+                                    if api_calls_made:
+                                        with st.expander("📊 Data Sources & Traceability", expanded=False):
+                                            total_records = sum(c.get('records', 0) for c in api_calls_made)
+                                            
+                                            st.markdown(f"**{len(api_calls_made)} data source(s) • {total_records} records processed**")
+                                            st.markdown("")
+                                            
+                                            for i, call in enumerate(api_calls_made, 1):
+                                                st.markdown(f"""
+                                                <div class="source-item">
+                                                    <div class="source-title">Source {i}: {call.get('dataset', 'Unknown')}</div>
+                                                    <div class="source-detail">📍 {call.get('purpose', 'N/A')}</div>
+                                                    <div class="source-detail">📊 {call.get('records', 0)} records retrieved</div>
+                                                    <div class="api-url-box">🔗 API: {call.get('url', 'N/A')}</div>
+                                                </div>
+                                                """, unsafe_allow_html=True)
+                                            
+                                            st.markdown("---")
+                                            st.caption("💡 All data sourced in real-time from **data.gov.in** (Government of India Open Data Portal)")
+                                            st.caption("🔍 API endpoints above can be used to independently verify all data points")
+                                    
                                     add_message('assistant', answer_result['answer'], api_calls=api_calls_made)
                                 else:
                                     error_msg = f"⚠️ {answer_result.get('error', 'Error generating answer')}\n\n💡 Please try rephrasing your question."
