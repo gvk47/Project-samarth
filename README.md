@@ -168,7 +168,6 @@ project-samarth/
 ├── requirements.txt          # Python dependencies
 ├── .streamlit/
 │   ├── config.toml          # Streamlit settings
-│   └── secrets.toml         # API keys (local only, not in Git)
 ├── .gitignore               # Protects secrets
 └── README.md                # This file
 ```
@@ -246,5 +245,6 @@ Challenge submission showcasing:
 ---
 
 **Made with ❤️ for Indian Agriculture**
+
 
 
